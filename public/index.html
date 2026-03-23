@@ -37,6 +37,39 @@
         box-shadow: 0 10px 30px rgba(120, 53, 15, 0.12);
       }
 
+      .section {
+        margin-top: 22px;
+        padding-top: 14px;
+        border-top: 1px solid #e7d8c5;
+      }
+
+      label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .grid .full {
+        grid-column: 1 / -1;
+      }
+
+      .muted {
+        color: #57534e;
+        font-size: 0.94rem;
+      }
+
+      @media (max-width: 640px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
       h1 {
         margin-top: 0;
         font-size: clamp(1.5rem, 3vw, 2rem);
@@ -83,7 +116,7 @@
   <body>
     <main class="card">
       <h1>Simple Full Stack App (No Database)</h1>
-      <p>Frontend calls backend API and shows response.</p>
+      <p>Frontend + Node APIs with real server-side validation and summary logic.</p>
 
       <div class="row">
         <button id="loadBtn">Load Backend Message</button>
@@ -96,18 +129,77 @@
         <button id="echoBtn">Send to /api/echo</button>
       </div>
       <pre id="echoOut">Echo result appears here</pre>
+
+      <section class="section">
+        <h2>Receipt API Demo</h2>
+        <p class="muted">Creates validated receipt records on the backend (in-memory), then queries and summarizes them.</p>
+
+        <div class="grid">
+          <div>
+            <label for="studentInput">Student Name</label>
+            <input id="studentInput" placeholder="Ex: Vinay Raj" />
+          </div>
+          <div>
+            <label for="termInput">Term</label>
+            <input id="termInput" placeholder="Ex: 4th sem" />
+          </div>
+          <div>
+            <label for="amountInput">Amount</label>
+            <input id="amountInput" type="number" min="1" step="0.01" placeholder="Ex: 12500" />
+          </div>
+          <div>
+            <label for="notesInput">Notes</label>
+            <input id="notesInput" placeholder="Optional note" />
+          </div>
+          <div class="full row">
+            <button id="saveReceiptBtn">Save Receipt</button>
+            <button id="listReceiptBtn">List Receipts</button>
+            <button id="summaryReceiptBtn">Load Summary</button>
+          </div>
+          <div class="full">
+            <label for="searchInput">Search</label>
+            <div class="row" style="margin-top: 0">
+              <input id="searchInput" placeholder="Search by name/term/notes" />
+              <button id="searchReceiptBtn">Search</button>
+            </div>
+          </div>
+        </div>
+
+        <pre id="receiptOut">Receipt API output appears here</pre>
+      </section>
     </main>
 
     <script>
       const output = document.getElementById("output");
       const echoOut = document.getElementById("echoOut");
       const textInput = document.getElementById("textInput");
+      const studentInput = document.getElementById("studentInput");
+      const termInput = document.getElementById("termInput");
+      const amountInput = document.getElementById("amountInput");
+      const notesInput = document.getElementById("notesInput");
+      const searchInput = document.getElementById("searchInput");
+      const receiptOut = document.getElementById("receiptOut");
+
+      function showJson(target, data) {
+        target.textContent = JSON.stringify(data, null, 2);
+      }
+
+      async function fetchJson(url, options) {
+        const res = await fetch(url, options);
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || `Request failed (${res.status})`);
+        }
+
+        return data;
+      }
 
       document.getElementById("loadBtn").addEventListener("click", async () => {
         try {
           const res = await fetch("/api/message");
           const data = await res.json();
-          output.textContent = JSON.stringify(data, null, 2);
+          showJson(output, data);
         } catch (err) {
           output.textContent = "Error: " + err.message;
         }
@@ -121,9 +213,61 @@
             body: JSON.stringify({ text: textInput.value })
           });
           const data = await res.json();
-          echoOut.textContent = JSON.stringify(data, null, 2);
+          showJson(echoOut, data);
         } catch (err) {
           echoOut.textContent = "Error: " + err.message;
+        }
+      });
+
+      document.getElementById("saveReceiptBtn").addEventListener("click", async () => {
+        try {
+          const payload = {
+            studentName: studentInput.value,
+            term: termInput.value,
+            amount: amountInput.value,
+            notes: notesInput.value
+          };
+
+          const data = await fetchJson("/api/receipts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+
+          showJson(receiptOut, data);
+          amountInput.value = "";
+          notesInput.value = "";
+        } catch (err) {
+          receiptOut.textContent = "Error: " + err.message;
+        }
+      });
+
+      document.getElementById("listReceiptBtn").addEventListener("click", async () => {
+        try {
+          const data = await fetchJson("/api/receipts");
+          showJson(receiptOut, data);
+        } catch (err) {
+          receiptOut.textContent = "Error: " + err.message;
+        }
+      });
+
+      document.getElementById("searchReceiptBtn").addEventListener("click", async () => {
+        try {
+          const query = encodeURIComponent(searchInput.value.trim());
+          const url = query ? `/api/receipts?q=${query}` : "/api/receipts";
+          const data = await fetchJson(url);
+          showJson(receiptOut, data);
+        } catch (err) {
+          receiptOut.textContent = "Error: " + err.message;
+        }
+      });
+
+      document.getElementById("summaryReceiptBtn").addEventListener("click", async () => {
+        try {
+          const data = await fetchJson("/api/receipts/summary");
+          showJson(receiptOut, data);
+        } catch (err) {
+          receiptOut.textContent = "Error: " + err.message;
         }
       });
     </script>
